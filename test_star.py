@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-from einsumt import einsumt as einsum
 from algo import StarAlgebra as star
 from mprod import generate_haar, generate_dct, m_prod
 
@@ -37,7 +36,7 @@ def test_basic(tenA_omatB_omatX_M):
     star_cg = star(funM, invM)
     omatX_pred = star_cg.fitCG_predict(tenA, omatB)
     print(star.Fnorm(omatX_pred-omatX))
-    assert star.Fnorm(omatX_pred-omatX) < 10**-5
+    assert star.Fnorm(omatX_pred-omatX) < 10**-6
 
 
 

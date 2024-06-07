@@ -14,7 +14,7 @@ class StarAlgebra:
         self.transforM = transforM
         self.inv_transforM = inv_transforM
 
-    def fitCG_predict(self, tenA: NumpynDArray, omatB: NumpynDArray, num_iter: Optional[int]=None):
+    def fitCG_predict(self, tenA: NumpynDArray, omatB: NumpynDArray, num_iter: Optional[int]=None, normalize: bool = False):
         """
 
         Args:
@@ -36,7 +36,10 @@ class StarAlgebra:
         self.iterative_residuals = [1] #firs normalized residual is always 1
         self.iterative_solutions = [X]
 
-        R = omatB_tr
+        if normalize:
+            R, B_norm_tube = self.normalize(omatB_tr)
+        else:
+            R = omatB_tr
         D = R.copy()
 
         for i in range(num_iter):
@@ -52,7 +55,8 @@ class StarAlgebra:
             beta = beta_num*self.tubal_pseudoinverse(beta_den)
             D = R_next + beta*D
             R = R_next.copy()
-        # X = a_all*X
+        if normalize:
+            X = B_norm_tube*X
         X = self.inv_transforM(X)
         return X
 
@@ -84,7 +88,7 @@ class StarAlgebra:
             omat_normalized = inv_transforM(omat_normalized_tr)
         else:
             omat_normalized = omat_normalized_tr
-        return omat_normalized, normalization_tuple
+        return omat_normalized, omat_tubal_norm
 
     @staticmethod
     def facewise_mult(tenA, tenB):
