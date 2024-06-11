@@ -1,6 +1,7 @@
 import numpy as np
 from einsumt import einsumt as einsum  #Multithreaded version of numpy.einsum function
 from typing import Callable, Optional
+from scipy.fft import dct
 
 NumpynDArray = np.ndarray
 MatrixTensorProduct = Callable[[NumpynDArray], NumpynDArray]
@@ -15,6 +16,19 @@ class StarAlgebra:
         self.transforM = transforM
         self.inv_transforM = inv_transforM
         self.iterative_solutions = []
+
+    def sketch(self, tensor: NumpynDArray, s: Optional[int] = None):
+        height, width, depth = self._dimensionality_assertion(tensor, omatB=None, square=False)
+        ten_hat = self.transforM(tensor)
+        d = np.random.choice([-1, 1], height).reshape(height, 1, 1)
+        tenDA_hat = d*ten_hat
+        tenHDA_hat = dct(tenDA_hat, type=2, n=height, axis=0, norm='ortho', workers=-1)
+        if s is None:
+            s = 4*width
+        chosen_rows = np.random.choice(height, s, replace=False)
+        sampled_ten_hat = tenHDA_hat[chosen_rows]
+        tensor_sketched = self.inv_transforM(sampled_ten_hat)
+        return tensor_sketched
 
     def fitCG_predict(
             self,

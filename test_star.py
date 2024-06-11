@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from algo import StarAlgebra as star
-from mprod import generate_haar
+from mprod import generate_haar, m_prod
 
 
 @pytest.fixture
@@ -73,9 +73,20 @@ def test_normal(tenA_omatB_omatX_M):
 
     omatX_pred_Ch = star_normal.solve_normal_Cholesky(tenA, omatB)
     assert star.Fnorm(omatX_pred_Ch - omatX) < 10 ** -6
+    R = star.Fnorm(m_prod(tenA, omatX_pred_Ch, funM, invM)-omatB)
+
+    tenA_concat_omatB = np.concatenate([tenA, omatB], 1)
+    sketchAB = star_normal.sketch(tenA_concat_omatB)
+    tenA_sketched, omatB_sketched = sketchAB[:, :-1], sketchAB[:, -1:]
+    omatX_pred_sketch_Ch = star_normal.solve_normal_Cholesky(tenA_sketched, omatB_sketched)
+    R_sketched = star.Fnorm(m_prod(tenA, omatX_pred_sketch_Ch, funM, invM) - omatB)
+
+    assert R_sketched - R < 10**-6
 
     omatX_pred_QR = star_normal.solve_normal_QR(tenA, omatB)
     assert star.Fnorm(omatX_pred_QR - omatX) < 10 ** -6
+
+    sketchA = star_normal.sketch(tenA)
 
 
 
