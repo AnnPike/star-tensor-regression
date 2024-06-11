@@ -54,7 +54,7 @@ def test_CG(tenA_sq_omatB_omatX_M):
     print(star.Fnorm(omatX_pred-omatX))
     assert star.Fnorm(omatX_pred-omatX) < 10**-6
 
-    iterative_norm_tr = [star.Fnorm(invM(X) - omatX) for X in star_cg.iterative_solutions_CG]
+    iterative_norm_tr = [star.Fnorm(invM(X) - omatX) for X in star_cg.iterative_solutions]
     assert (np.array(iterative_norm_tr[:-1]) >= np.array(iterative_norm_tr[1:])).all()
 
 
@@ -65,8 +65,15 @@ def test_LSQR(tenA_omatB_omatX_M):
     print(star.Fnorm(omatX_pred-omatX))
     assert star.Fnorm(omatX_pred-omatX) < 10**-6
 
-    iterative_norm_tr = [star.Fnorm(invM(X) - omatX) for X in star_lsqr.iterative_solutions_LSQR]
+    iterative_norm_tr = [star.Fnorm(invM(X) - omatX) for X in star_lsqr.iterative_solutions]
     assert (np.array(iterative_norm_tr[:-1]) >= np.array(iterative_norm_tr[1:])).all()
+
+
+def test_normal_Cholesky(tenA_omatB_omatX_M):
+    tenA, omatX, omatB, funM, invM = tenA_omatB_omatX_M
+    star_normal = star(funM, invM)
+    omatX_pred = star_normal.solve_normal_Cholesky(tenA, omatB)
+    assert star.Fnorm(omatX_pred - omatX) < 10 ** -6
 
 
 

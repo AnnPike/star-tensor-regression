@@ -14,28 +14,41 @@ class StarAlgebra:
     def __init__(self, transforM: MatrixTensorProduct, inv_transforM: MatrixTensorProduct):
         self.transforM = transforM
         self.inv_transforM = inv_transforM
+        self.iterative_solutions = []
 
-    def fitCG_predict(self, tenA: NumpynDArray, omatB: NumpynDArray, num_iter: Optional[int] = None,
-                      normalize: bool = False):
+    def fitCG_predict(
+            self,
+            tenA: NumpynDArray,
+            omatB: NumpynDArray,
+            num_iter: Optional[int] = None,
+            normalize: bool = False):
         """
 
-        Args:
-          tenA: NumpynDArray:
-          omatB: NumpynDArray:
-          num_iter: Optional[int]:  (Default value = None)
+        Parameters
+        ----------
+        tenA: NumpynDArray :
+            
+        omatB: NumpynDArray :
+            
+        num_iter: Optional[int] :
+             (Default value = None)
+        normalize: bool :
+             (Default value = False)
 
-        Returns:
+        Returns
+        -------
 
         """
-        self.height, self.width, self.depth = self._dimensionality_assertion_CG(tenA, omatB, square=True)
+
+        height, width, depth = self._dimensionality_assertion(tenA, omatB, square=True)
         tenA_tr = self.transforM(tenA)
         omatB_tr = self.transforM(omatB)
         if num_iter is None:
-            num_iter = self.height
+            num_iter = height
 
         #initialize
-        X = np.zeros((self.width, 1, self.depth))
-        self.iterative_solutions_CG = [X]
+        X = np.zeros((width, 1, depth))
+        self.iterative_solutions = [X]
 
         if normalize:
             R, B_norm_tube = self.normalize(omatB_tr)
@@ -49,7 +62,7 @@ class StarAlgebra:
             alpha = alpha_num * self.tubal_pseudoinverse(alpha_den)
 
             X = X + alpha * D
-            self.iterative_solutions_CG.append(X)
+            self.iterative_solutions.append(X)
             R_next = R - alpha * self.facewise_mult(tenA_tr, D)
 
             beta_num = self.facewise_mult(R_next.transpose((1, 0, 2)), R_next)
@@ -63,17 +76,35 @@ class StarAlgebra:
         return X
 
     def fit_LSQR_predict(self, tenA, omatB, tenP=None, num_iter: Optional[int] = None):
-        self.height, self.width, self.depth = self._dimensionality_assertion_CG(tenA, omatB, square=False)
+        """
+
+        Parameters
+        ----------
+        tenA :
+            
+        omatB :
+            
+        tenP :
+             (Default value = None)
+        num_iter: Optional[int] :
+             (Default value = None)
+
+        Returns
+        -------
+
+        """
+
+        height, width, depth = self._dimensionality_assertion(tenA, omatB, square=False)
         if num_iter is None:
-            num_iter = self.width
+            num_iter = width
         tenA_tr = self.transforM(tenA)
         omatB_tr = self.transforM(omatB)
         if tenP:
             tenP_tr = self.transforM(tenP)
         else:
-            tenP_tr = self.unit_tensor_transform(self.width, self.depth)
-        X = np.zeros((self.width, 1, self.depth))
-        self.iterative_solutions_LSQR = [X]
+            tenP_tr = self.unit_tensor_transform(width, depth)
+        X = np.zeros((width, 1, depth))
+        self.iterative_solutions = [X]
 
         U, beta = self.normalize(omatB_tr)
 
@@ -95,12 +126,119 @@ class StarAlgebra:
             fi_ = - s * fi_
 
             X = X + fi / ro * W_wave
-            self.iterative_solutions_LSQR.append(X)
+            self.iterative_solutions.append(X)
             W_wave = V_wave - tao / ro * W_wave
         X = self.inv_transforM(X)
         return X
 
-    def unit_tensor_transform(self, size, depth):
+    def solve_normal_Cholesky(self, tenA, omatB, reg: float = 0):
+        """
+
+        Parameters
+        ----------
+        tenA :
+            
+        omatB :
+            
+        reg: float :
+             (Default value = 0)
+
+        Returns
+        -------
+
+        """
+
+        _ = self._dimensionality_assertion(tenA, omatB, square=False)
+        tenA_hat = self.transforM(tenA)
+        omatB_hat = self.transforM(omatB)
+        tenL_hat = self.get_Cholesky(tenA_hat, reg=reg)
+        tenL_inv_hat = self.get_inverse_tensor(tenL_hat)
+        left_mult = self.facewise_mult(tenA_hat.transpose((1, 0, 2)), omatB_hat)
+        mult = self.facewise_mult(tenL_inv_hat, left_mult)
+        X_hat = self.facewise_mult(tenL_inv_hat.transpose((1, 0, 2)), mult)
+        return self.inv_transforM(X_hat)
+
+    def get_Cholesky(self, tensor,
+                  transforM: Optional[MatrixTensorProduct] = None,
+                  inv_transforM: Optional[MatrixTensorProduct] = None,
+                  reg: float = 0):
+        """
+
+        Parameters
+        ----------
+        tensor :
+            
+        transforM: Optional[MatrixTensorProduct] :
+             (Default value = None)
+        inv_transforM: Optional[MatrixTensorProduct] :
+             (Default value = None)
+        reg: float :
+             (Default value = 0)
+
+        Returns
+        -------
+
+        """
+
+        height, width, depth = self._dimensionality_assertion(tensor, omatB=None, square=False)
+        if transforM:
+            ten_hat = transforM(tensor)
+        else:
+            ten_hat = tensor.copy()
+        gram_ten = self.facewise_mult(ten_hat.transpose(1, 0, 2), ten_hat)
+        gram_ten_reg = gram_ten + reg * self.unit_tensor_transform(width, depth)
+        tenL_hat = np.linalg.cholesky(gram_ten_reg.transpose(2, 0, 1)).transpose(1, 2, 0)
+        if inv_transforM:
+            tensorL = inv_transforM(tenL_hat)
+        else:
+            tensorL = tenL_hat.copy()
+        return tensorL
+
+    def get_inverse_tensor(self, tensor, transforM: Optional[MatrixTensorProduct] = None,
+                  inv_transforM: Optional[MatrixTensorProduct] = None):
+        """
+
+        Parameters
+        ----------
+        tensor :
+            
+        transforM: Optional[MatrixTensorProduct] :
+             (Default value = None)
+        inv_transforM: Optional[MatrixTensorProduct] :
+             (Default value = None)
+
+        Returns
+        -------
+
+        """
+
+        if transforM:
+            ten_hat = transforM(tensor)
+        else:
+            ten_hat = tensor.copy()
+        ten_inv_hat = np.linalg.inv(ten_hat.transpose(2, 0, 1)).transpose(1, 2, 0)
+        if inv_transforM:
+            ten_inv = inv_transforM(ten_inv_hat)
+        else:
+            ten_inv = ten_inv_hat.copy()
+        return ten_inv
+
+    @staticmethod
+    def unit_tensor_transform(size, depth):
+        """
+
+        Parameters
+        ----------
+        size :
+            
+        depth :
+            
+
+        Returns
+        -------
+
+        """
+
         return np.concatenate([np.eye(size).reshape(size, size, 1) for d in range(depth)], axis=2)
 
     def normalize(self,
@@ -110,14 +248,20 @@ class StarAlgebra:
                   ) -> tuple[NumpynDArray, NumpynDArray]:
         """
 
-        Args:
-          omat: NumpynDArray: 
-          transforM: Optional[MatrixTensorProduct]:  (Default value = None)
-          inv_transforM: Optional[MatrixTensorProduct]:  (Default value = None)
+        Parameters
+        ----------
+        omat: NumpynDArray :
+            
+        transforM: Optional[MatrixTensorProduct] :
+             (Default value = None)
+        inv_transforM: Optional[MatrixTensorProduct] :
+             (Default value = None)
 
-        Returns:
+        Returns
+        -------
 
         """
+
         omat_tubal_norm = self.Mnorm(omat, transforM, inv_transforM)
         normalization_tuple = self.tubal_pseudoinverse(omat_tubal_norm, transforM, inv_transforM)
         if transforM is not None:
@@ -135,18 +279,20 @@ class StarAlgebra:
 
     @staticmethod
     def facewise_mult(tenA, tenB):
-        """Performs fast (parallel) multiplication of corresopnding frontal slices of tenA and tenB
-
-        Args:
-          tenA: NumpynDArray
-        tensor of shape m,p,n
-          tenB: NumpynDArray
-        tensor of shape p,l,n
-
-        Returns:
-
-        
         """
+
+        Parameters
+        ----------
+        tenA :
+            
+        tenB :
+            
+
+        Returns
+        -------
+
+        """
+
         heightA, widthA, depthA = tenA.shape
         heightB, widthB, depthB = tenB.shape
         if widthA != heightB:
@@ -163,12 +309,16 @@ class StarAlgebra:
     def Fnorm(ten: NumpynDArray) -> float:
         """
 
-        Args:
-          ten: NumpynDArray: 
+        Parameters
+        ----------
+        ten: NumpynDArray :
+            
 
-        Returns:
+        Returns
+        -------
 
         """
+
         return np.sqrt((ten ** 2).sum())
 
     @staticmethod
@@ -178,14 +328,20 @@ class StarAlgebra:
             inv_transforM: Optional[MatrixTensorProduct] = None):
         """
 
-        Args:
-          omat: NumpynDArray: 
-          transforM: Optional[MatrixTensorProduct]:  (Default value = None)
-          inv_transforM: Optional[MatrixTensorProduct]:  (Default value = None)
+        Parameters
+        ----------
+        omat: NumpynDArray :
+            
+        transforM: Optional[MatrixTensorProduct] :
+             (Default value = None)
+        inv_transforM: Optional[MatrixTensorProduct] :
+             (Default value = None)
 
-        Returns:
+        Returns
+        -------
 
         """
+
         if transforM is not None:
             omat_transformed = transforM(omat)
         else:
@@ -205,15 +361,22 @@ class StarAlgebra:
             tol: float = TOL):
         """
 
-        Args:
-          alpha: NumpynDArray: 
-          transforM: Optional[MatrixTensorProduct]:  (Default value = None)
-          inv_transforM: Optional[MatrixTensorProduct]:  (Default value = None)
-          tol: float:  (Default value = TOL)
+        Parameters
+        ----------
+        alpha: NumpynDArray :
+            
+        transforM: Optional[MatrixTensorProduct] :
+             (Default value = None)
+        inv_transforM: Optional[MatrixTensorProduct] :
+             (Default value = None)
+        tol: float :
+             (Default value = TOL)
 
-        Returns:
+        Returns
+        -------
 
         """
+
         height, width, depth = alpha.shape
         if height != 1 or width != 1 or depth < 2:
             raise Exception("Tubal pseudoinverse is intended only for tubal scalars"
@@ -231,19 +394,23 @@ class StarAlgebra:
             alpha_normalized = alpha_transform_normalized
         return alpha_normalized
 
-    def _dimensionality_assertion_CG(self, tenA: NumpynDArray, omatB: NumpynDArray, square: bool):
-        """Fast implementation of Star CG - performed in transformed space, and the result is returned to original space
-
-        Args:
-          tenA(np.array :): 
-          omatB(np.array :): 
-          tenA: NumpynDArray: 
-          omatB: NumpynDArray: 
-
-        Returns:
-
-        
+    def _dimensionality_assertion(self, tenA: NumpynDArray, omatB: Optional[NumpynDArray], square: bool):
         """
+
+        Parameters
+        ----------
+        tenA: NumpynDArray :
+            
+        omatB: Optional[NumpynDArray] :
+            
+        square: bool :
+            
+
+        Returns
+        -------
+
+        """
+
         # tensor assert
         if tenA.ndim != 3:
             raise Exception("This method solves only for 3 mode tensors. "
@@ -253,26 +420,22 @@ class StarAlgebra:
             if height != width:
                 raise Exception("This method solves only for square tensors. "
                                 f"Got height: {height} NOT EQUAL TO width: {width}")
-
-        # target tubal vector assert
-        if omatB.ndim != 3:
-            if omatB.ndim == 2:
-                height_target, width_target = omatB.shape
-                depth_target = 1
-            else:
+        if omatB is not None:
+            # target tubal vector assert
+            if omatB.ndim != 3:
                 raise Exception("This method solves only for target omatB is matrix or tensor with width 1"
-                                f"Got dimension: {omatB.ndim}, EXPECTED: 2 or 3")
-        else:
-            height_target, width_target, depth_target = omatB.shape
-        if width_target != 1:
-            raise Exception("This method solves only for target omatB is tubal vector"
-                            f"Got width: {width_target}, EXPECTED: 1")
+                                    f"Got dimension: {omatB.ndim}, EXPECTED: 3")
+            else:
+                height_target, width_target, depth_target = omatB.shape
+            if width_target != 1:
+                raise Exception("This method solves only for target omatB is tubal vector"
+                                f"Got width: {width_target}, EXPECTED: 1")
 
-        # compatibility assertions
-        if height != height_target:
-            raise Exception("Left and right height must be equal. "
-                            f"Got tensor height: {height} NOT EQUAL TO target height: {height_target}")
-        if depth != depth_target:
-            raise Exception("Left and right depth must be equal. "
-                            f"Got tensor depth: {depth} NOT EQUAL TO target depth: {depth_target}")
+            # compatibility assertions
+            if height != height_target:
+                raise Exception("Left and right height must be equal. "
+                                f"Got tensor height: {height} NOT EQUAL TO target height: {height_target}")
+            if depth != depth_target:
+                raise Exception("Left and right depth must be equal. "
+                                f"Got tensor depth: {depth} NOT EQUAL TO target depth: {depth_target}")
         return height, width, depth
