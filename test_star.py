@@ -6,7 +6,7 @@ from mprod import generate_haar
 
 @pytest.fixture
 def tenA_sq_omatB_omatX_M():
-    m, p, n = 100, 20, 10
+    m, p, n = 1000, 20, 10
     A_rec = np.random.randn(m, p, n)
     tenA_tr = star.facewise_mult(A_rec.transpose((1, 0, 2)), A_rec)
     omatX_tr = np.random.randn(p, 1, n)
@@ -21,7 +21,7 @@ def tenA_sq_omatB_omatX_M():
 
 @pytest.fixture
 def tenA_omatB_omatX_M():
-    m, p, n = 100, 20, 10
+    m, p, n = 1000, 20, 10
     A_rec_tr = np.random.randn(m, p, n)
     omatX_tr = np.random.randn(p, 1, n)
     omatB_tr = star.facewise_mult(A_rec_tr, omatX_tr)
@@ -51,7 +51,6 @@ def test_CG(tenA_sq_omatB_omatX_M):
     tenA, omatX, omatB, funM, invM = tenA_sq_omatB_omatX_M
     star_cg = star(funM, invM)
     omatX_pred = star_cg.fitCG_predict(tenA, omatB)
-    print(star.Fnorm(omatX_pred-omatX))
     assert star.Fnorm(omatX_pred-omatX) < 10**-6
 
     iterative_norm_tr = [star.Fnorm(invM(X) - omatX) for X in star_cg.iterative_solutions]
@@ -62,18 +61,21 @@ def test_LSQR(tenA_omatB_omatX_M):
     tenA, omatX, omatB, funM, invM = tenA_omatB_omatX_M
     star_lsqr = star(funM, invM)
     omatX_pred = star_lsqr.fit_LSQR_predict(tenA, omatB)
-    print(star.Fnorm(omatX_pred-omatX))
     assert star.Fnorm(omatX_pred-omatX) < 10**-6
 
     iterative_norm_tr = [star.Fnorm(invM(X) - omatX) for X in star_lsqr.iterative_solutions]
     assert (np.array(iterative_norm_tr[:-1]) >= np.array(iterative_norm_tr[1:])).all()
 
 
-def test_normal_Cholesky(tenA_omatB_omatX_M):
+def test_normal(tenA_omatB_omatX_M):
     tenA, omatX, omatB, funM, invM = tenA_omatB_omatX_M
     star_normal = star(funM, invM)
-    omatX_pred = star_normal.solve_normal_Cholesky(tenA, omatB)
-    assert star.Fnorm(omatX_pred - omatX) < 10 ** -6
+
+    omatX_pred_Ch = star_normal.solve_normal_Cholesky(tenA, omatB)
+    assert star.Fnorm(omatX_pred_Ch - omatX) < 10 ** -6
+
+    omatX_pred_QR = star_normal.solve_normal_QR(tenA, omatB)
+    assert star.Fnorm(omatX_pred_QR - omatX) < 10 ** -6
 
 
 

@@ -194,6 +194,52 @@ class StarAlgebra:
             tensorL = tenL_hat.copy()
         return tensorL
 
+    def solve_normal_QR(self, tenA, omatB):
+        _ = self._dimensionality_assertion(tenA, omatB, square=False)
+        tenA_hat = self.transforM(tenA)
+        omatB_hat = self.transforM(omatB)
+        tenQ_hat, tenR_hat = self.get_QR(tenA_hat)
+        mult_right = self.facewise_mult(tenQ_hat.transpose((1, 0, 2)), omatB_hat)
+        tenR_inv_hat = self.get_inverse_tensor(tenR_hat)
+        X_hat = self.facewise_mult(tenR_inv_hat, mult_right)
+        X = self.inv_transforM(X_hat)
+        return X
+
+    def get_QR(self, tensor,
+                     transforM: Optional[MatrixTensorProduct] = None,
+                     inv_transforM: Optional[MatrixTensorProduct] = None):
+        """
+
+        Parameters
+        ----------
+        tensor :
+
+        transforM: Optional[MatrixTensorProduct] :
+             (Default value = None)
+        inv_transforM: Optional[MatrixTensorProduct] :
+             (Default value = None)
+        reg: float :
+             (Default value = 0)
+
+        Returns
+        -------
+
+        """
+
+        height, width, depth = self._dimensionality_assertion(tensor, omatB=None, square=False)
+        if transforM:
+            ten_hat = transforM(tensor)
+        else:
+            ten_hat = tensor.copy()
+
+        tenQ_hat_T, tenR_hat_T = np.linalg.qr(ten_hat.transpose(2, 0, 1), mode='reduced')
+        tenQ_hat, tenR_hat = tenQ_hat_T.transpose(1, 2, 0), tenR_hat_T.transpose(1, 2, 0)
+        if inv_transforM:
+            tenQ, tenR = inv_transforM(tenQ_hat), inv_transforM(tenR_hat)
+        else:
+            tenQ, tenR = tenQ_hat.copy(), tenR_hat.copy()
+        return tenQ, tenR
+
     def get_inverse_tensor(self, tensor, transforM: Optional[MatrixTensorProduct] = None,
                   inv_transforM: Optional[MatrixTensorProduct] = None):
         """
