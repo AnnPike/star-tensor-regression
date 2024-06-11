@@ -67,26 +67,45 @@ def test_LSQR(tenA_omatB_omatX_M):
     assert (np.array(iterative_norm_tr[:-1]) >= np.array(iterative_norm_tr[1:])).all()
 
 
-def test_normal(tenA_omatB_omatX_M):
+def test_normal_eqs(tenA_omatB_omatX_M):
     tenA, omatX, omatB, funM, invM = tenA_omatB_omatX_M
     star_normal = star(funM, invM)
 
     omatX_pred_Ch = star_normal.solve_normal_Cholesky(tenA, omatB)
     assert star.Fnorm(omatX_pred_Ch - omatX) < 10 ** -6
-    R = star.Fnorm(m_prod(tenA, omatX_pred_Ch, funM, invM)-omatB)
 
-    tenA_concat_omatB = np.concatenate([tenA, omatB], 1)
-    sketchAB = star_normal.sketch(tenA_concat_omatB)
-    tenA_sketched, omatB_sketched = sketchAB[:, :-1], sketchAB[:, -1:]
+    omatX_pred_QR = star_normal.solve_normal_Cholesky(tenA, omatB)
+    assert star.Fnorm(omatX_pred_QR - omatX) < 10 ** -6
+
+
+def test_sketch(tenA_omatB_omatX_M):
+    tenA, omatX, omatB, funM, invM = tenA_omatB_omatX_M
+    star_normal = star(funM, invM)
+
+    omatX_pred_Ch = star_normal.solve_normal_Cholesky(tenA, omatB)
+    R = star.Fnorm(m_prod(tenA, omatX_pred_Ch, funM, invM) - omatB)
+
+    tenA_sketched, omatB_sketched = star_normal.get_sketched_pair(tenA, omatB)
     omatX_pred_sketch_Ch = star_normal.solve_normal_Cholesky(tenA_sketched, omatB_sketched)
     R_sketched = star.Fnorm(m_prod(tenA, omatX_pred_sketch_Ch, funM, invM) - omatB)
 
-    assert R_sketched - R < 10**-6
+    assert R_sketched > R
+    assert R_sketched - R < 10 ** -6
 
-    omatX_pred_QR = star_normal.solve_normal_QR(tenA, omatB)
-    assert star.Fnorm(omatX_pred_QR - omatX) < 10 ** -6
+def test_blendenpik(tenA_omatB_omatX_M):
+    tenA, omatX, omatB, funM, invM = tenA_omatB_omatX_M
+    star_lsqr = star(funM, invM)
+    omatX_pred = star_lsqr.fit_LSQR_predict(tenA, omatB)
+    R = star.Fnorm(m_prod(tenA, omatX_pred, funM, invM) - omatB)
 
-    sketchA = star_normal.sketch(tenA)
+    omatX_pred_bk = star_lsqr.fit_blendenpik_predict(tenA, omatB)
+    R_bk = star.Fnorm(m_prod(tenA, omatX_pred_bk, funM, invM) - omatB)
+    assert R < R_bk
+    assert R - R_bk < 10**-6
+
+
+
+
 
 
 

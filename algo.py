@@ -30,6 +30,12 @@ class StarAlgebra:
         tensor_sketched = self.inv_transforM(sampled_ten_hat)
         return tensor_sketched
 
+    def get_sketched_pair(self, tenA, omatB):
+        tenA_concat_omatB = np.concatenate([tenA, omatB], 1)
+        sketchAB = self.sketch(tenA_concat_omatB)
+        tenA_sketched, omatB_sketched = sketchAB[:, :-1], sketchAB[:, -1:]
+        return tenA_sketched, omatB_sketched
+
     def fitCG_predict(
             self,
             tenA: NumpynDArray,
@@ -113,7 +119,7 @@ class StarAlgebra:
             num_iter = width
         tenA_tr = self.transforM(tenA)
         omatB_tr = self.transforM(omatB)
-        if tenP:
+        if tenP is not None:
             tenP_tr = self.transforM(tenP)
         else:
             tenP_tr = self.unit_tensor_transform(width, depth)
@@ -143,6 +149,13 @@ class StarAlgebra:
             self.iterative_solutions.append(X)
             W_wave = V_wave - tao / ro * W_wave
         X = self.inv_transforM(X)
+        return X
+
+    def fit_blendenpik_predict(self, tenA, omatB):
+        tenA_sketched = self.sketch(tenA)
+        tenQ, tenR = self.get_QR(tenA_sketched, self.transforM, self.inv_transforM)
+        tenP = self.get_inverse_tensor(tenR, self.transforM, self.inv_transforM)
+        X = self.fit_LSQR_predict(tenA, omatB, tenP=tenP)
         return X
 
     def solve_normal_Cholesky(self, tenA, omatB, reg: float = 0):
