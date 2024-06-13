@@ -17,23 +17,35 @@ class StarAlgebra:
         self.inv_transforM = inv_transforM
         self.iterative_solutions = []
 
-    def sketch(self, tensor: NumpynDArray, s: Optional[int] = None):
+    def _transform(self, tensor, transform):
+        if transform is not None:
+            ten_transform = self.transforM(tensor)
+        else:
+            ten_transform = tensor.copy()
+        return ten_transform
+
+    def sketch(self, tensor: NumpynDArray, s: Optional[int] = None, transforM: Optional[MatrixTensorProduct] = None,
+                     inv_transforM: Optional[MatrixTensorProduct] = None):
         height, width, depth = self._dimensionality_assertion(tensor, omatB=None, square=False)
-        ten_hat = self.transforM(tensor)
+        ten_hat = self._transform(tensor, transforM)
         d = np.random.choice([-1, 1], height).reshape(height, 1, 1)
         tenDA_hat = d*ten_hat
         tenHDA_hat = dct(tenDA_hat, type=2, n=height, axis=0, norm='ortho', workers=-1)
         if s is None:
             s = 4*width
         chosen_rows = np.random.choice(height, s, replace=False)
-        sampled_ten_hat = tenHDA_hat[chosen_rows]
-        tensor_sketched = self.inv_transforM(sampled_ten_hat)
+        tensor_sketched_hat = tenHDA_hat[chosen_rows]
+        tensor_sketched = self._transform(tensor_sketched_hat, inv_transforM)
         return tensor_sketched
 
-    def get_sketched_pair(self, tenA, omatB):
-        tenA_concat_omatB = np.concatenate([tenA, omatB], 1)
-        sketchAB = self.sketch(tenA_concat_omatB)
-        tenA_sketched, omatB_sketched = sketchAB[:, :-1], sketchAB[:, -1:]
+    def get_sketched_pair(self, tenA, omatB, transforM: Optional[MatrixTensorProduct] = None,
+                     inv_transforM: Optional[MatrixTensorProduct] = None):
+        tenA_hat, omatB_hat = self._transform(tenA, transforM), self._transform(omatB, transforM)
+        tenA_concat_omatB_hat = np.concatenate([tenA_hat, omatB_hat], 1)
+        sketchAB_hat = self.sketch(tenA_concat_omatB_hat)
+        tenA_sketched_hat, omatB_sketched_hat = sketchAB_hat[:, :-1], sketchAB_hat[:, -1:]
+        tenA_sketched = self._transform(tenA_sketched_hat, inv_transforM)
+        omatB_sketched = self._transform(omatB_sketched_hat, inv_transforM)
         return tenA_sketched, omatB_sketched
 
     def fitCG_predict(
@@ -116,7 +128,7 @@ class StarAlgebra:
 
         height, width, depth = self._dimensionality_assertion(tenA, omatB, square=False)
         if num_iter is None:
-            num_iter = width
+            num_iter = 4*width
         tenA_tr = self.transforM(tenA)
         omatB_tr = self.transforM(omatB)
         if tenP is not None:
@@ -148,6 +160,65 @@ class StarAlgebra:
             X = X + fi / ro * W_wave
             self.iterative_solutions.append(X)
             W_wave = V_wave - tao / ro * W_wave
+        X = self.inv_transforM(X)
+        return X
+
+    def fit_LSQR_scalar_predict(self, tenA, omatB, num_iter: Optional[int] = None):
+        """
+
+        Parameters
+        ----------
+        tenA :
+
+        omatB :
+
+        tenP :
+             (Default value = None)
+        num_iter: Optional[int] :
+             (Default value = None)
+
+        Returns
+        -------
+
+        """
+
+        height, width, depth = self._dimensionality_assertion(tenA, omatB, square=False)
+        if num_iter is None:
+            num_iter = 4*width
+        tenA_tr = self.transforM(tenA)
+        omatB_tr = self.transforM(omatB)
+
+        X = np.zeros((width, 1, depth))
+        self.iterative_solutions = [X]
+
+        beta = self.Mnorm(omatB_tr)
+        U = omatB_tr/beta
+
+        V = self.facewise_mult(tenA_tr.transpose((1, 0, 2)), U)
+        alpha = self.Fnorm(V)
+        V = V/alpha
+
+        W = V.copy()
+        ro_ = alpha.copy()
+        fi_ = beta.copy()
+        for i in range(num_iter):
+            U = self.facewise_mult(tenA_tr, V) - alpha*U
+            beta = self.Fnorm(U)
+            U = U/beta
+
+            V_tilde = self.facewise_mult(tenA_tr.transpose((1, 0, 2)), U) - beta*V
+            alpha = self.Fnorm(V_tilde)
+            V = V_tilde/alpha
+
+            ro = np.sqrt(ro_ ** 2 + beta ** 2)
+            c, s = ro_ / ro, beta / ro
+            tao, ro_ = s * alpha, c * alpha
+            fi = c * fi_
+            fi_ = - s * fi_
+
+            X = X + fi / ro * W
+            self.iterative_solutions.append(X)
+            W = V - tao / ro * W
         X = self.inv_transforM(X)
         return X
 
