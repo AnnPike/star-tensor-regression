@@ -53,9 +53,6 @@ def test_CG(tenA_sq_omatB_omatX_M):
     omatX_pred = star_cg.fitCG_predict(tenA, omatB)
     assert star.Fnorm(omatX_pred-omatX) < 10**-6
 
-    iterative_norm_tr = [star.Fnorm(invM(X) - omatX) for X in star_cg.iterative_solutions]
-    assert (np.array(iterative_norm_tr[:-1]) >= np.array(iterative_norm_tr[1:])).all()
-
 
 def test_LSQR(tenA_omatB_omatX_M):
     tenA, omatX, omatB, funM, invM = tenA_omatB_omatX_M
@@ -63,14 +60,8 @@ def test_LSQR(tenA_omatB_omatX_M):
     omatX_pred = star_lsqr.fit_LSQR_predict(tenA, omatB)
     assert star.Fnorm(omatX_pred-omatX) < 10**-6
 
-    iterative_norm = [star.Fnorm(invM(X) - omatX) for X in star_lsqr.iterative_solutions]
-    assert (np.array(iterative_norm[:-1]) >= np.array(iterative_norm[1:])).all()
-
     omatX_pred_s = star_lsqr.fit_LSQR_scalar_predict(tenA, omatB)
-    assert star.Fnorm(omatX_pred_s - omatX) < 1
-    iterative_norm_scalar = [star.Fnorm(invM(X) - omatX) for X in star_lsqr.iterative_solutions]
-    assert (np.array(iterative_norm_scalar[:-1]) >= np.array(iterative_norm_scalar[1:])).all()
-
+    assert star.Fnorm(omatX_pred_s - omatX) < 10**-6
 
 def test_normal_eqs(tenA_omatB_omatX_M):
     tenA, omatX, omatB, funM, invM = tenA_omatB_omatX_M

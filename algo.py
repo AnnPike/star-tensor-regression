@@ -32,7 +32,7 @@ class StarAlgebra:
         tenDA_hat = d*ten_hat
         tenHDA_hat = dct(tenDA_hat, type=2, n=height, axis=0, norm='ortho', workers=-1)
         if s is None:
-            s = 4*width
+            s = int(1.5*width)
         chosen_rows = np.random.choice(height, s, replace=False)
         tensor_sketched_hat = tenHDA_hat[chosen_rows]
         tensor_sketched = self._transform(tensor_sketched_hat, inv_transforM)
@@ -128,7 +128,7 @@ class StarAlgebra:
 
         height, width, depth = self._dimensionality_assertion(tenA, omatB, square=False)
         if num_iter is None:
-            num_iter = 4*width
+            num_iter = width
         tenA_tr = self.transforM(tenA)
         omatB_tr = self.transforM(omatB)
         if tenP is not None:
@@ -184,27 +184,27 @@ class StarAlgebra:
 
         height, width, depth = self._dimensionality_assertion(tenA, omatB, square=False)
         if num_iter is None:
-            num_iter = 4*width
+            num_iter = width
         tenA_tr = self.transforM(tenA)
         omatB_tr = self.transforM(omatB)
 
         X = np.zeros((width, 1, depth))
         self.iterative_solutions = [X]
 
-        beta = self.Mnorm(omatB_tr)
+        beta = self.Fnorm(omatB_tr)
         U = omatB_tr/beta
 
-        V = self.facewise_mult(tenA_tr.transpose((1, 0, 2)), U)
-        alpha = self.Fnorm(V)
-        V = V/alpha
+        V_tilde = self.facewise_mult(tenA_tr.transpose((1, 0, 2)), U)
+        alpha = self.Fnorm(V_tilde)
+        V = V_tilde/alpha
 
         W = V.copy()
         ro_ = alpha.copy()
         fi_ = beta.copy()
         for i in range(num_iter):
-            U = self.facewise_mult(tenA_tr, V) - alpha*U
-            beta = self.Fnorm(U)
-            U = U/beta
+            U_tilde = self.facewise_mult(tenA_tr, V) - alpha*U
+            beta = self.Fnorm(U_tilde)
+            U = U_tilde/beta
 
             V_tilde = self.facewise_mult(tenA_tr.transpose((1, 0, 2)), U) - beta*V
             alpha = self.Fnorm(V_tilde)
